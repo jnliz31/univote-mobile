@@ -16,10 +16,18 @@ export default function VoterVotesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const loadVotes = useCallback(async () => {
     try {
       const response = await api.getVotes();
-      // Guard: only process real arrays (error responses are plain objects)
+      if (!mountedRef.current) return;
       if (response.data && Array.isArray(response.data)) {
         // Group by election
         const groups = new Map<number, VoteGroup>();
@@ -39,6 +47,7 @@ export default function VoterVotesScreen() {
             candidate: vote.candidate?.name || '',
           });
         }
+        if (!mountedRef.current) return;
         setVoteGroups(Array.from(groups.values()));
       }
     } catch (error) {
@@ -47,8 +56,11 @@ export default function VoterVotesScreen() {
   }, []);
 
   useEffect(() => {
-    loadVotes().finally(() => setLoading(false));
+    loadVotes().finally(() => {
+      if (mountedRef.current) setLoading(false);
+    });
   }, [loadVotes]);
+
 
   const onRefresh = async () => {
     setRefreshing(true);

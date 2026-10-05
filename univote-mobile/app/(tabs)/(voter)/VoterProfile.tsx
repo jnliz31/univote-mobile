@@ -58,9 +58,18 @@ export default function VoterProfileScreen() {
   const initials = name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
   const email = user?.email || 'jameslizada@campus.edu.ph';
 
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const loadFacialConfig = useCallback(async () => {
     try {
       const response = await api.getFacialConfig();
+      if (!mountedRef.current) return;
       if (response.data) {
         setFacialConfig(response.data.facial_config);
         setIsRequired(response.data.is_required);
@@ -71,8 +80,11 @@ export default function VoterProfileScreen() {
   }, []);
 
   useEffect(() => {
-    loadFacialConfig().finally(() => setLoading(false));
+    loadFacialConfig().finally(() => {
+      if (mountedRef.current) setLoading(false);
+    });
   }, [loadFacialConfig]);
+
 
   const onRefresh = async () => {
     setRefreshing(true);

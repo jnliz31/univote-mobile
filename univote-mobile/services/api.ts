@@ -270,6 +270,18 @@ class ApiService {
     });
   }
 
+  async googleLogin(params: { idToken?: string; email?: string; name?: string; googleId?: string }) {
+    return this.request<{ user: User & { is_new_user?: boolean }; token: string }>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({
+        id_token: params.idToken,
+        email: params.email,
+        name: params.name,
+        google_id: params.googleId,
+      }),
+    });
+  }
+
   async logout() {
     const response = await this.request<{ message: string }>("/auth/logout", {
       method: "POST",

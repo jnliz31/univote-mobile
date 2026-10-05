@@ -12,6 +12,7 @@ import AdminVoters from "../components/admin/AdminVoters.vue";
 import AdminOrganizations from "../components/admin/AdminOrganizations.vue";
 import AdminResults from "../components/admin/AdminResults.vue";
 import AdminAnnouncements from "../components/admin/AdminAnnouncements.vue";
+import AdminAuditLogs from "../components/admin/AdminAuditLogs.vue";
 import AdminProfile from "../components/admin/AdminProfile.vue";
 
 // Layouts
@@ -84,6 +85,11 @@ const routes = [
                 path: "announcements",
                 name: "admin-announcements",
                 component: AdminAnnouncements,
+            },
+            {
+                path: "audit-logs",
+                name: "admin-audit-logs",
+                component: AdminAuditLogs,
             },
             {
                 path: "profile",

@@ -37,9 +37,16 @@
 
 <script>
 import { adminAPI } from "../../services/api.js";
+import { useNotification } from "../../composables/useNotification.js";
+import { useConfirmDialog } from "../../composables/useConfirmDialog.js";
 
 export default {
     name: "AdminOrganizations",
+    setup() {
+        const { error: showError, success: showSuccess } = useNotification();
+        const { confirmDangerous: showConfirmDangerous } = useConfirmDialog();
+        return { showError, showSuccess, showConfirmDangerous };
+    },
     data() {
         return { organizations: [], newName: "", newCode: "", editingId: null, editingName: "", editingCode: "", loading: false };
     },
@@ -48,8 +55,12 @@ export default {
     },
     methods: {
         async loadOrganizations() {
-            const response = await adminAPI.getOrganizations();
-            this.organizations = response.data.organizations || [];
+            try {
+                const response = await adminAPI.getOrganizations();
+                this.organizations = response.data.organizations || [];
+            } catch (error) {
+                console.error("Error loading organizations:", error);
+            }
         },
         async createOrganization() {
             this.loading = true;
@@ -58,6 +69,10 @@ export default {
                 this.organizations.push(response.data.organization);
                 this.newName = "";
                 this.newCode = "";
+                this.showSuccess("Organization created successfully!");
+            } catch (error) {
+                const errorMessage = error.response?.data?.message || error.message || "Failed to create organization";
+                this.showError(errorMessage);
             } finally {
                 this.loading = false;
             }
@@ -68,14 +83,31 @@ export default {
             this.editingCode = organization.code;
         },
         async saveOrganization(organization) {
-            const response = await adminAPI.updateOrganization(organization.id, { name: this.editingName, code: this.editingCode });
-            Object.assign(organization, response.data.organization);
-            this.editingId = null;
+            try {
+                const response = await adminAPI.updateOrganization(organization.id, { name: this.editingName, code: this.editingCode });
+                Object.assign(organization, response.data.organization);
+                this.editingId = null;
+                this.showSuccess("Organization updated successfully!");
+            } catch (error) {
+                const errorMessage = error.response?.data?.message || error.message || "Failed to update organization";
+                this.showError(errorMessage);
+            }
         },
         async removeOrganization(organization) {
-            if (!window.confirm(`Delete ${organization.name}?`)) return;
-            await adminAPI.deleteOrganization(organization.id);
-            this.organizations = this.organizations.filter((item) => item.id !== organization.id);
+            const confirmed = await this.showConfirmDangerous(
+                "Are you sure you want to delete this organization? This action cannot be undone.",
+                { title: "Delete Organization", confirmText: "Delete" }
+            );
+            if (!confirmed) return;
+
+            try {
+                await adminAPI.deleteOrganization(organization.id);
+                this.organizations = this.organizations.filter((item) => item.id !== organization.id);
+                this.showSuccess("Organization deleted successfully!");
+            } catch (error) {
+                const errorMessage = error.response?.data?.message || error.message || "Failed to delete organization";
+                this.showError(errorMessage);
+            }
         },
     },
 };

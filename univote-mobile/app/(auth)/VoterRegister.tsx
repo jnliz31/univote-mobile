@@ -63,6 +63,7 @@ export default function VoterRegisterScreen() {
     loadOrganizations();
   }, []);
 
+
   const handleContinue = async () => {
     if (step === 1) {
       if (!email.trim() || !password || !confirmPassword) {

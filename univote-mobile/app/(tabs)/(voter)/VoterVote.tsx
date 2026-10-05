@@ -27,10 +27,18 @@ export default function VoterVoteScreen() {
   const [faceModalVisible, setFaceModalVisible] = useState(false);
   const [faceModalAction, setFaceModalAction] = useState<FaceVerificationAction>('enroll');
 
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       const electionsResp = await api.getElections('active');
-      // Guard: only process real arrays
+      if (!mountedRef.current) return;
       if (electionsResp.data && Array.isArray(electionsResp.data)) {
         setElections(electionsResp.data);
         const voted = new Set<number>();
@@ -40,10 +48,12 @@ export default function VoterVoteScreen() {
             if (check.data?.has_voted) voted.add(e.id);
           })
         );
+        if (!mountedRef.current) return;
         setVotedElections(voted);
       }
 
       const facialResp = await api.getFacialConfig();
+      if (!mountedRef.current) return;
       if (facialResp.data && !facialResp.error) {
         setFacialConfig(facialResp.data.facial_config);
         setFacialRequired(facialResp.data.is_required);
@@ -54,8 +64,11 @@ export default function VoterVoteScreen() {
   }, []);
 
   useEffect(() => {
-    loadData().finally(() => setLoading(false));
+    loadData().finally(() => {
+      if (mountedRef.current) setLoading(false);
+    });
   }, [loadData]);
+
 
   const onRefresh = async () => {
     setRefreshing(true);

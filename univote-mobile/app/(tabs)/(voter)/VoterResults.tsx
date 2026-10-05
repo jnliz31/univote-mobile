@@ -64,14 +64,23 @@ export default function VoterResultsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const loadResults = useCallback(async () => {
     try {
       const electionsRes = await api.getElections('closed');
-      // Guard: only process real arrays (error responses are plain objects)
+      if (!mountedRef.current) return;
       const elections = Array.isArray(electionsRes.data) ? electionsRes.data : [];
       const fetched: ResultElection[] = [];
       for (const e of elections) {
         const r = await api.getElectionResults(e.id);
+        if (!mountedRef.current) return;
         if (r.data) {
           fetched.push({
             id: r.data.election.id,
@@ -82,6 +91,7 @@ export default function VoterResultsScreen() {
           });
         }
       }
+      if (!mountedRef.current) return;
       setResults(fetched);
     } catch (error) {
       console.error('Error loading results:', error);
@@ -89,8 +99,11 @@ export default function VoterResultsScreen() {
   }, []);
 
   useEffect(() => {
-    loadResults().finally(() => setLoading(false));
+    loadResults().finally(() => {
+      if (mountedRef.current) setLoading(false);
+    });
   }, [loadResults]);
+
 
   const onRefresh = async () => {
     setRefreshing(true);

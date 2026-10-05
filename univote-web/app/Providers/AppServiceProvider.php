@@ -26,5 +26,15 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('facial-verify', function (Request $request) {
             return Limit::perMinute(6)->by($request->user()?->id ?: $request->ip());
         });
+
+        // Register Audit Observer for central audit logging across Web and Mobile API
+        $auditObserver = \App\Observers\AuditObserver::class;
+        \App\Models\Election::observe($auditObserver);
+        \App\Models\Candidate::observe($auditObserver);
+        \App\Models\Voter::observe($auditObserver);
+        \App\Models\Vote::observe($auditObserver);
+        \App\Models\Position::observe($auditObserver);
+        \App\Models\Announcement::observe($auditObserver);
+        \App\Models\Organization::observe($auditObserver);
     }
 }

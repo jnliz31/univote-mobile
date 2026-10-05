@@ -34,18 +34,35 @@ class AdminAuthController extends Controller
 
         if (Auth::guard('admin')->attempt($credentials)) {
             $request->session()->regenerate();
+            $admin = Auth::guard('admin')->user();
             
+            \App\Models\AuditLog::record([
+                'user_id'    => $admin->id,
+                'user_type'  => get_class($admin),
+                'actor_name' => $admin->name ?? $admin->email,
+                'action'     => 'LOGIN_SUCCESS',
+                'description'=> 'Admin logged in via Web Admin panel',
+            ]);
+
             // Return JSON for API
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Login successful',
-                    'admin' => Auth::guard('admin')->user()
+                    'admin'   => $admin
                 ]);
             }
             
             return redirect()->intended('/admin/dashboard');
         }
+
+        \App\Models\AuditLog::record([
+            'user_id'    => null,
+            'actor_name' => $request->input('email'),
+            'action'     => 'LOGIN_FAILED',
+            'description'=> 'Failed login attempt on Web Admin panel',
+            'severity'   => 'warning',
+        ]);
 
         // Return JSON error for API
         if ($request->expectsJson()) {
@@ -62,6 +79,17 @@ class AdminAuthController extends Controller
 
     public function logout(Request $request)
     {
+        $admin = Auth::guard('admin')->user();
+        if ($admin) {
+            \App\Models\AuditLog::record([
+                'user_id'    => $admin->id,
+                'user_type'  => get_class($admin),
+                'actor_name' => $admin->name ?? $admin->email,
+                'action'     => 'LOGOUT',
+                'description'=> 'Admin logged out from Web Admin panel',
+            ]);
+        }
+
         Auth::guard('admin')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

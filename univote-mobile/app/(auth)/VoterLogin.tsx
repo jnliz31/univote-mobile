@@ -5,11 +5,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
 import { useAuth } from '@/context/AuthContext';
 import { Colors } from '@/constants/Colors';
 
+WebBrowser.maybeCompleteAuthSession();
+
 export default function VoterLoginScreen() {
-  const { loginStudent } = useAuth();
+  const { loginStudent, loginWithGoogle } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,10 +22,52 @@ export default function VoterLoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const mountedRef = useRef(true);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+  const handleGoogleLogin = async (idToken: string) => {
+    safeSetLoading(true);
+    const result = await loginWithGoogle({ idToken });
+    safeSetLoading(false);
+    if (!result.success && mountedRef.current) {
+      Alert.alert('Access Restricted', result.error || 'Google Sign-In failed');
+    }
+  };
+
+  const handleGoogleButtonPress = async () => {
+    const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    if (!clientId) {
+      Alert.alert(
+        'Google Configuration Missing',
+        'Please add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to your univote-mobile/.env file and restart Expo.'
+      );
+      return;
+    }
+
+    const redirectUri = 'http://localhost:8000/voter/auth/google/callback';
+    const nonce = Math.random().toString(36).substring(2);
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${encodeURIComponent(clientId)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=id_token` +
+      `&scope=${encodeURIComponent('openid email profile')}` +
+      `&nonce=${encodeURIComponent(nonce)}`;
+
+    try {
+      safeSetLoading(true);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+      if (result.type === 'success' && result.url) {
+        const match = result.url.match(/[#?&]id_token=([^&]+)/);
+        if (match && match[1]) {
+          const idToken = decodeURIComponent(match[1]);
+          await handleGoogleLogin(idToken);
+        } else {
+          Alert.alert('Google Sign-In Error', 'Could not retrieve ID token from Google response.');
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Google Sign-In Error', err?.message || 'Failed to complete Google authentication.');
+    } finally {
+      safeSetLoading(false);
+    }
+  };
 
   const safeSetLoading = (value: boolean) => {
     if (mountedRef.current) setLoading(value);
@@ -56,7 +103,7 @@ export default function VoterLoginScreen() {
             <Text style={styles.label}>Student Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="student@snsu.edu.ph"
+              placeholder="student@ssct.edu.ph"
               placeholderTextColor={Colors.textMuted}
               value={email}
               onChangeText={setEmail}
@@ -105,9 +152,14 @@ export default function VoterLoginScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.8} onPress={() => Alert.alert('Google Sign-In', 'Coming soon!')}>
+          <TouchableOpacity
+            style={[styles.secondaryBtn, loading && styles.btnDisabled]}
+            activeOpacity={0.8}
+            disabled={loading}
+            onPress={handleGoogleButtonPress}
+          >
             <Ionicons name="logo-google" size={20} color="#4285F4" />
-            <Text style={styles.secondaryBtnText}>Sign in with Gmail</Text>
+            <Text style={styles.secondaryBtnText}>Sign in with Google</Text>
           </TouchableOpacity>
 
           <View style={styles.links}>

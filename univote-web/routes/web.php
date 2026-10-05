@@ -94,6 +94,12 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
         Route::delete('announcements/{announcement}', 'destroy')->name('admin.announcements.destroy');
     });
 
+    // Audit Logs Management
+    Route::controller(\App\Http\Controllers\Admin\AuditLogController::class)->group(function () {
+        Route::get('audit-logs', 'index')->name('admin.audit-logs.index');
+        Route::get('audit-logs/{id}', 'show')->name('admin.audit-logs.show');
+    });
+
     // Admin Profile
     Route::controller(ProfileController::class)->group(function () {
         Route::get('profile', 'show')->name('admin.profile.show');

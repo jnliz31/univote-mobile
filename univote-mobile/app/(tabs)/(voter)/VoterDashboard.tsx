@@ -13,12 +13,13 @@ export default function VoterDashboardScreen() {
   const [activeElections, setActiveElections] = useState<Election[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Only fetch data when auth is resolved AND user is authenticated
+  const mountedRef = React.useRef(true);
   useEffect(() => {
-    if (!loading && user) {
-      loadData();
-    }
-  }, [loading, user]);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -27,6 +28,7 @@ export default function VoterDashboardScreen() {
         api.getElections('active'),
       ]);
 
+      if (!mountedRef.current) return;
       // Guard: only store real arrays (error responses are plain objects)
       setAnnouncements(Array.isArray(announcementsRes.data) ? announcementsRes.data : []);
       setActiveElections(Array.isArray(electionsRes.data) ? electionsRes.data : []);
@@ -34,6 +36,14 @@ export default function VoterDashboardScreen() {
       console.error('Error loading data:', error);
     }
   }, []);
+
+  // Only fetch data when auth is resolved AND user is authenticated
+  useEffect(() => {
+    if (!loading && user) {
+      loadData();
+    }
+  }, [loading, user, loadData]);
+
 
   const onRefresh = async () => {
     setRefreshing(true);

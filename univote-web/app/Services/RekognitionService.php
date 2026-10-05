@@ -418,9 +418,9 @@ class RekognitionService
                 $cb = 128.0 - (0.168736 * $r) - (0.331264 * $g) + (0.5 * $b);
                 $cr = 128.0 + (0.5 * $r) - (0.418688 * $g) - (0.081312 * $b);
 
-                // Standard universal human skin locus (YCbCr + RGB chromaticity)
-                $isSkin = ($cb >= 77.0 && $cb <= 127.0 && $cr >= 133.0 && $cr <= 173.0)
-                    && ($r > $g) && ($r > $b) && (($r - $g) >= 12);
+                // Universal human skin locus (YCbCr + RGB chromaticity)
+                $isSkin = ($cb >= 65.0 && $cb <= 142.0 && $cr >= 126.0 && $cr <= 184.0)
+                    && ($r > $b) && ($g > 15) && (($r - $g) >= 1 || $cr >= 130);
 
                 $skinMask[$y][$x] = $isSkin;
 
@@ -521,11 +521,11 @@ class RekognitionService
         $totalSkinRatio = $totalPixels > 0 ? ($skinPixelCount / $totalPixels) : 0;
 
         // 1. NO FACE DETECTED CHECKS:
-        // A genuine face must have decent skin presence in the center region (14% to 85%) and natural feature contrast
+        // A genuine face must have decent skin presence in the center region and natural feature contrast
         $hasFace = true;
         $noFaceReason = null;
 
-        if ($centerSkinRatio < 0.12 && $totalSkinRatio < 0.12) {
+        if ($centerSkinRatio < 0.03 && $totalSkinRatio < 0.03) {
             $hasFace = false;
             $noFaceReason = 'No face detected. Please position your face clearly within the oval guide.';
         } elseif ($centerSkinRatio > 0.92 && $avgEyeContrast < 8.0) {

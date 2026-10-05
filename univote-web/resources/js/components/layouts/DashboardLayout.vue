@@ -100,6 +100,19 @@
                         Announcements
                     </router-link>
                     <router-link
+                        to="/admin/audit-logs"
+                        class="nav-item"
+                        active-class="active"
+                        :exact-active-class="
+                            $route.path === '/admin/audit-logs'
+                                ? 'active'
+                                : ''
+                        "
+                    >
+                        <span class="nav-icon" aria-hidden="true">🛡</span>
+                        Audit Logs
+                    </router-link>
+                    <router-link
                         to="/admin/profile"
                         class="nav-item"
                         active-class="active"
@@ -202,6 +215,7 @@ export default {
                 "/admin/organizations": "Organizations",
                 "/admin/results": "Results",
                 "/admin/announcements": "Announcements",
+                "/admin/audit-logs": "Audit Logs System",
                 "/admin/profile": "Profile",
             };
             this.pageTitle = titles[this.$route.path] || "Dashboard";

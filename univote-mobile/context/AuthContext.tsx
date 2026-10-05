@@ -8,6 +8,7 @@ interface AuthContextType {
   registerStudent: (data: { fullName: string; email: string; password: string; age: number; sex: string; course: string; yearLevel: string; organizationId?: number }) => Promise<{ success: boolean; error?: string }>;
   finishRegistration: () => Promise<void>;
   loginStudent: (data: { email: string; password: string }) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (params: { idToken?: string; email?: string; name?: string; googleId?: string }) => Promise<{ success: boolean; isNewUser?: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshFacialConfig: () => Promise<void>;
 }
@@ -84,6 +85,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (params: { idToken?: string; email?: string; name?: string; googleId?: string }) => {
+    try {
+      const response = await api.googleLogin(params);
+      if (response.data) {
+        await api.setToken(response.data.token);
+        setUser(response.data.user);
+        return { success: true, isNewUser: response.data.user.is_new_user };
+      }
+      return { success: false, error: response.error || 'Google login failed' };
+    } catch (error) {
+      console.error('Google login error:', error);
+      return { success: false, error: 'Google login failed. Please try again.' };
+    }
+  };
+
   const logout = async () => {
     try {
       await api.logout();
@@ -114,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, registerStudent, finishRegistration, loginStudent, logout, refreshFacialConfig }}>
+    <AuthContext.Provider value={{ user, loading, registerStudent, finishRegistration, loginStudent, loginWithGoogle, logout, refreshFacialConfig }}>
       {children}
     </AuthContext.Provider>
   );

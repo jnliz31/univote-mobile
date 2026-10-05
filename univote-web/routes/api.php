@@ -18,6 +18,7 @@ Route::get('/health', function () {
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/google', [AuthController::class, 'googleLogin']);
 Route::get('/organizations', [OrganizationController::class, 'index']);
 
 // Protected routes (require authentication)
