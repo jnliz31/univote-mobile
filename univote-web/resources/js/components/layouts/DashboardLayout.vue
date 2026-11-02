@@ -109,7 +109,7 @@
                                 : ''
                         "
                     >
-                        <span class="nav-icon" aria-hidden="true">🛡</span>
+                        <span class="nav-icon" aria-hidden="true">⛨</span>
                         Audit Logs
                     </router-link>
                     <router-link
@@ -133,7 +133,7 @@
                     Logout
                 </button>
                 <div class="copyright">
-                    © 2025 Univote. All rights reserved.
+                    © 2026 Univote. All rights reserved.
                 </div>
             </div>
         </aside>

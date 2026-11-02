@@ -364,8 +364,8 @@ export default {
                 } else if (this.selectedCourseFilter !== "all") {
                     const sel = String(this.selectedCourseFilter).toLowerCase().trim();
                     const vCourse = (voter.course || "").toLowerCase().trim();
-                    const vRelCode = (voter.courseRelation?.code || "").toLowerCase().trim();
-                    const vRelName = (voter.courseRelation?.name || "").toLowerCase().trim();
+                    const vRelCode = (voter.course_relation?.code || "").toLowerCase().trim();
+                    const vRelName = (voter.course_relation?.name || "").toLowerCase().trim();
                     const vCourseId = voter.course_id ? String(voter.course_id) : null;
 
                     const matchedCourse = this.availableCourses.find(
@@ -430,7 +430,7 @@ export default {
     methods: {
         getVoterCourseText(voter) {
             if (!voter) return "—";
-            return voter.course || voter.courseRelation?.code || voter.courseRelation?.name || "—";
+            return voter.course || voter.course_relation?.code || voter.course_relation?.name || "—";
         },
         async loadVoters() {
             try {
@@ -455,7 +455,7 @@ export default {
             this.validationErrors = {};
             this.editingVoterId = voter.id;
 
-            const courseText = voter.course || voter.courseRelation?.code || voter.courseRelation?.name || "";
+            const courseText = voter.course || voter.course_relation?.code || voter.course_relation?.name || "";
             const matched = this.availableCourses.find((c) => {
                 if (voter.course_id && c.id === voter.course_id) return true;
                 const cCode = (c.code || "").toLowerCase().trim();

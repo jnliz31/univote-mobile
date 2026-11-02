@@ -40,18 +40,32 @@
                 </div>
 
 
-                <!-- Universal Org Filter (Functional across Bar, Stacked, Donut, Pie, Line) -->
+                <!-- Universal Scope Filter (Organizations & Courses) -->
                 <div class="org-filter">
-                    <label for="focusOrgSelect" class="filter-label">Organization:</label>
-                    <select id="focusOrgSelect" v-model="selectedOrgId" class="form-select">
+                    <label for="focusOrgSelect" class="filter-label">Filter by scope:</label>
+                    <select id="focusOrgSelect" v-model="selectedFilter" class="form-select">
                         <option value="all">All Organizations ({{ validOrganizations.length }})</option>
-                        <option
-                            v-for="org in validOrganizations"
-                            :key="org.id ?? 'unassigned'"
-                            :value="org.id ?? 'unassigned'"
-                        >
-                            {{ org.name }} ({{ org.code }})
-                        </option>
+                        <option value="general">Campus-wide / General</option>
+                        
+                        <optgroup v-if="validOrganizations.length" label="Organizations">
+                            <option
+                                v-for="org in validOrganizations"
+                                :key="org.id ?? 'unassigned'"
+                                :value="org.id ?? 'unassigned'"
+                            >
+                                {{ org.name }} ({{ org.code }})
+                            </option>
+                        </optgroup>
+
+                        <optgroup v-if="validCourses.length" label="Courses">
+                            <option
+                                v-for="course in validCourses"
+                                :key="course.id"
+                                :value="`course:${course.id}`"
+                            >
+                                {{ course.code }}<template v-if="course.name && course.name !== course.code"> ({{ course.name }})</template>
+                            </option>
+                        </optgroup>
                     </select>
                 </div>
 
@@ -84,7 +98,7 @@
         </div>
 
         <!-- Quick Summary Pills Bar -->
-        <div class="summary-chips-bar" v-if="validOrganizations.length">
+        <div class="summary-chips-bar" v-if="validOrganizations.length || validCourses.length">
             <div class="chip-item">
                 <span class="chip-label">Scope:</span>
                 <strong class="chip-val">{{ currentFocusName }}</strong>
@@ -113,12 +127,12 @@
             </div>
 
             <!-- Empty State -->
-            <div v-else-if="!validOrganizations.length" class="empty-chart">
+            <div v-else-if="!validOrganizations.length && !validCourses.length" class="empty-chart">
                 <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125z" />
                 </svg>
-                <p class="empty-title">No organization voter data</p>
-                <p class="empty-sub">Voter statistics will appear here once organizations register voters.</p>
+                <p class="empty-title">No voter data available</p>
+                <p class="empty-sub">Voter statistics will appear here once organizations or courses register voters.</p>
             </div>
 
             <!-- 1. GROUPED BAR CHART -->
@@ -620,16 +634,25 @@ export default {
             type: Array,
             default: () => [],
         },
+        courseStats: {
+            type: Array,
+            default: () => [],
+        },
         loading: {
             type: Boolean,
             default: false,
+        },
+        // Filter pushed down by the dashboard "Filter by scope" dropdown.
+        scopedFilter: {
+            type: [Number, String],
+            default: "all",
         },
     },
     data() {
         return {
             chartType: "bar", // bar, stacked, doughnut, pie, line
             metricMode: "participation", // participation, demographics, both
-            selectedOrgId: "all",
+            selectedFilter: "all",
             hoveredSlice: null,
             hiddenSeries: new Set(),
             margin: { top: 32, right: 30, bottom: 46, left: 52 },
@@ -687,13 +710,30 @@ export default {
         validOrganizations() {
             return this.organizationStats || [];
         },
-        // Filter organizations based on selection (or all)
+        validCourses() {
+            return this.courseStats || [];
+        },
+        // Filter data based on selection (or all organizations)
         displayOrganizations() {
-            if (this.selectedOrgId === "all") {
+            const filter = String(this.selectedFilter);
+            
+            if (filter === "all") {
                 return this.validOrganizations;
             }
+            
+            if (filter === "general") {
+                // Show 'Unassigned' if it exists in org stats
+                return this.validOrganizations.filter((o) => o.id === null || o.code === 'N/A');
+            }
+            
+            if (filter.startsWith("course:")) {
+                const courseId = filter.slice("course:".length);
+                return this.validCourses.filter((c) => String(c.id) === courseId);
+            }
+            
+            // Organization filter
             const filtered = this.validOrganizations.filter(
-                (o) => (o.id ?? "unassigned") === this.selectedOrgId,
+                (o) => (o.id !== null && String(o.id) === filter)
             );
             return filtered.length ? filtered : this.validOrganizations;
         },
@@ -895,9 +935,11 @@ export default {
                 x: orgs.length > 1 ? this.margin.left + idx * stepX : this.margin.left + chartAreaWidth / 2,
             }));
         },
-        // Data for the currently focused organization or aggregate
+        // Data for the currently focused organization, course, or aggregate
         focusedOrgData() {
-            if (this.selectedOrgId === "all") {
+            const filter = String(this.selectedFilter);
+            
+            if (filter === "all") {
                 const agg = {
                     name: "All Organizations",
                     code: "ALL",
@@ -919,9 +961,38 @@ export default {
                 return agg;
             }
 
+            if (filter === "general") {
+                return this.validOrganizations.find(o => o.id === null || o.code === 'N/A') || {
+                    name: "Campus-wide",
+                    code: "GEN",
+                    total_voters: 0,
+                    voted: 0,
+                    not_voted: 0,
+                    male_voters: 0,
+                    female_voters: 0,
+                    other_voters: 0,
+                };
+            }
+
+            if (filter.startsWith("course:")) {
+                const id = filter.slice("course:".length);
+                return (
+                    this.validCourses.find((c) => String(c.id) === id) || {
+                        name: "Unknown Course",
+                        code: "N/A",
+                        total_voters: 0,
+                        voted: 0,
+                        not_voted: 0,
+                        male_voters: 0,
+                        female_voters: 0,
+                        other_voters: 0,
+                    }
+                );
+            }
+
             return (
                 this.validOrganizations.find(
-                    (o) => (o.id ?? "unassigned") === this.selectedOrgId,
+                    (o) => o.id !== null && String(o.id) === filter
                 ) || {
                     name: "Unknown",
                     code: "N/A",
@@ -968,17 +1039,41 @@ export default {
         chartType() {
             this.hoveredSlice = null;
         },
+        // Keep the chart's selection aligned with the dashboard
+        // "Filter by scope" dropdown.
+        scopedFilter: {
+            immediate: true,
+            handler(value) {
+                this.selectedFilter =
+                    value === null || value === undefined || value === ""
+                        ? "all"
+                        : value;
+            },
+        },
         organizationStats() {
-            // Verify selected organization still exists
-            if (this.selectedOrgId !== "all") {
-                const found = this.validOrganizations.some(
-                    (o) => (o.id ?? "unassigned") === this.selectedOrgId,
-                );
-                if (!found) this.selectedOrgId = "all";
-            }
+            this.validateSelection();
+        },
+        courseStats() {
+            this.validateSelection();
         },
     },
     methods: {
+        validateSelection() {
+            // Verify selected scope still exists in its respective list
+            const filter = String(this.selectedFilter);
+            if (filter === "all" || filter === "general") return;
+
+            if (filter.startsWith("course:")) {
+                const id = filter.slice("course:".length);
+                if (!this.validCourses.some(c => String(c.id) === id)) {
+                    this.selectedFilter = "all";
+                }
+            } else {
+                if (!this.validOrganizations.some(o => (o.id ?? "unassigned") === filter)) {
+                    this.selectedFilter = "all";
+                }
+            }
+        },
         isSeriesHidden(key) {
             return this.hiddenSeries.has(key);
         },

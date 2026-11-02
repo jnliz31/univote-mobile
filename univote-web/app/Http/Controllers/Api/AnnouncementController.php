@@ -42,28 +42,31 @@ class AnnouncementController extends Controller
                     });
                 }
 
-                // 3. Course-specific announcements
+                // 3. Course-specific announcements — only voters registered in the same course
                 if ($courseId || $courseName) {
                     $q->orWhere(function ($sub) use ($courseId, $courseName) {
-                        $sub->where('target_type', 'course')
-                            ->orWhereNotNull('course_id');
-
-                        if ($courseId) {
-                            $sub->where(function ($cSub) use ($courseId, $courseName) {
-                                $cSub->where('course_id', $courseId);
+                        // Must be a course-targeted (or legacy untagged) announcement...
+                        $sub->where(function ($typeSub) {
+                            $typeSub->where('target_type', 'course')
+                                ->orWhereNull('target_type');
+                        })
+                        // ...whose course matches this voter's registered course
+                        ->where(function ($matchSub) use ($courseId, $courseName) {
+                            if ($courseId) {
+                                $matchSub->where('course_id', $courseId);
                                 if ($courseName) {
-                                    $cSub->orWhereHas('course', function ($rel) use ($courseName) {
+                                    $matchSub->orWhereHas('course', function ($rel) use ($courseName) {
                                         $rel->where('name', $courseName)
                                             ->orWhere('code', $courseName);
                                     });
                                 }
-                            });
-                        } elseif ($courseName) {
-                            $sub->whereHas('course', function ($rel) use ($courseName) {
-                                $rel->where('name', $courseName)
-                                    ->orWhere('code', $courseName);
-                            });
-                        }
+                            } elseif ($courseName) {
+                                $matchSub->whereHas('course', function ($rel) use ($courseName) {
+                                    $rel->where('name', $courseName)
+                                        ->orWhere('code', $courseName);
+                                });
+                            }
+                        });
                     });
                 }
             });

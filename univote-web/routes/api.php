@@ -15,37 +15,45 @@ Route::get('/health', function () {
     return response()->json(['status' => 'ok', 'message' => 'API is running']);
 });
 
-Route::get('/run-migrations', function () {
-    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
-    return response()->json([
-        'status' => 'success',
-        'output' => \Illuminate\Support\Facades\Artisan::output()
-    ]);
-});
+// One-time admin bootstrap. Disabled unless BOOTSTRAP_TOKEN is set in the
+// environment. Set the token on Render, call this once to create/reset an admin,
+// then remove BOOTSTRAP_TOKEN so the endpoint becomes unavailable again.
+Route::match(['get', 'post'], '/bootstrap/admin', function (\Illuminate\Http\Request $request) {
+    $configured = (string) config('services.bootstrap_token');
 
-Route::get('/create-admin', function (\Illuminate\Http\Request $request) {
-    $email = $request->query('email', 'admin@example.com');
-    $password = $request->query('password', 'password');
-    $name = $request->query('name', 'Admin');
+    if ($configured === '') {
+        abort(404);
+    }
+
+    $provided = (string) ($request->header('X-Bootstrap-Token') ?: $request->input('token', ''));
+
+    if (!hash_equals($configured, $provided)) {
+        abort(403, 'Invalid bootstrap token.');
+    }
+
+    $data = $request->validate([
+        'email' => 'required|email',
+        'password' => 'required|string|min:8',
+        'name' => 'nullable|string|max:255',
+    ]);
 
     $admin = \App\Models\Admin::updateOrCreate(
-        ['email' => $email],
+        ['email' => $data['email']],
         [
-            'name' => $name,
-            'password' => \Illuminate\Support\Facades\Hash::make($password),
+            'name' => $data['name'] ?? 'Admin',
+            'password' => \Illuminate\Support\Facades\Hash::make($data['password']),
         ]
     );
 
     return response()->json([
         'status' => 'success',
-        'message' => "Admin [{$admin->email}] is ready! You can now log in.",
-        'email' => $admin->email,
+        'message' => "Admin [{$admin->email}] is ready. Remove BOOTSTRAP_TOKEN now to disable this endpoint.",
     ]);
 });
 
 // Public routes
 Route::post('/auth/register', [AuthController::class, 'register']);
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::post('/auth/google', [AuthController::class, 'googleLogin']);
 Route::get('/organizations', [OrganizationController::class, 'index']);
 

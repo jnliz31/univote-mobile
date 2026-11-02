@@ -9,6 +9,8 @@ use App\Models\Course;
 use App\Models\Election;
 use App\Models\Position;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ElectionController extends Controller
 {
@@ -107,7 +109,7 @@ class ElectionController extends Controller
             'positions.*.name'                 => 'required|string|max:255',
             'positions.*.max_votes'            => 'required|integer|min:1',
             'positions.*.candidates'           => 'required|array|min:1',
-            'positions.*.candidates.*'         => 'required|string|max:255',
+            'positions.*.candidates.*'         => 'required',
         ]);
 
         // When course election, derive organization from course or enrolled voters
@@ -142,13 +144,19 @@ class ElectionController extends Controller
                 'order'       => $index,
             ]);
 
-            foreach ($positionData['candidates'] as $candidateName) {
-                if (! empty(trim($candidateName))) {
-                    Candidate::create([
-                        'position_id' => $position->id,
-                        'name'        => trim($candidateName),
-                    ]);
+            foreach ($positionData['candidates'] as $candidate) {
+                $normalized = $this->normalizeCandidate($candidate);
+
+                if ($normalized === null) {
+                    continue;
                 }
+
+                Candidate::create([
+                    'position_id' => $position->id,
+                    'name'        => $normalized['name'],
+                    'description' => $normalized['description'],
+                    'photo'       => $normalized['photo'],
+                ]);
             }
         }
 
@@ -202,7 +210,7 @@ class ElectionController extends Controller
             'positions.*.name'         => 'required|string|max:255',
             'positions.*.max_votes'    => 'required|integer|min:1',
             'positions.*.candidates'   => 'required|array|min:1',
-            'positions.*.candidates.*' => 'required|string|max:255',
+            'positions.*.candidates.*' => 'required',
         ]);
 
         $organizationId = $request->organization_id;
@@ -237,13 +245,19 @@ class ElectionController extends Controller
                 'order'       => $index,
             ]);
 
-            foreach ($positionData['candidates'] as $candidateName) {
-                if (! empty(trim($candidateName))) {
-                    Candidate::create([
-                        'position_id' => $position->id,
-                        'name'        => trim($candidateName),
-                    ]);
+            foreach ($positionData['candidates'] as $candidate) {
+                $normalized = $this->normalizeCandidate($candidate);
+
+                if ($normalized === null) {
+                    continue;
                 }
+
+                Candidate::create([
+                    'position_id' => $position->id,
+                    'name'        => $normalized['name'],
+                    'description' => $normalized['description'],
+                    'photo'       => $normalized['photo'],
+                ]);
             }
         }
 
@@ -291,5 +305,73 @@ class ElectionController extends Controller
                 'message' => 'Failed to delete election: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Normalize a candidate input, which may be a plain name string (legacy)
+     * or an object with name/description/photo (base64 data URI).
+     */
+    private function normalizeCandidate($candidate): ?array
+    {
+        if (is_string($candidate)) {
+            $candidate = ['name' => $candidate];
+        }
+
+        if (! is_array($candidate)) {
+            return null;
+        }
+
+        $name = trim((string) ($candidate['name'] ?? ''));
+        if ($name === '') {
+            return null;
+        }
+
+        $description = $candidate['description'] ?? null;
+        $description = is_string($description) ? trim($description) : null;
+
+        return [
+            'name'        => $name,
+            'description' => ($description !== null && $description !== '') ? $description : null,
+            'photo'       => $this->storeCandidatePhoto($candidate['photo'] ?? null),
+        ];
+    }
+
+    /**
+     * Persist a candidate photo. Accepts either an already-stored relative
+     * path (returned unchanged) or a base64 data URI which is decoded and
+     * written to the public disk.
+     */
+    private function storeCandidatePhoto($photo): ?string
+    {
+        if (! is_string($photo) || trim($photo) === '') {
+            return null;
+        }
+
+        // Already a stored path (e.g. editing without changing the photo).
+        if (! str_starts_with($photo, 'data:')) {
+            return $photo;
+        }
+
+        if (! preg_match('#^data:image/([a-zA-Z0-9.+-]+);base64,#', $photo, $matches)) {
+            return null;
+        }
+
+        $binary = base64_decode(substr($photo, strpos($photo, ',') + 1), true);
+        if ($binary === false) {
+            return null;
+        }
+
+        $extension = strtolower($matches[1]);
+        if ($extension === 'jpeg') {
+            $extension = 'jpg';
+        }
+        if (! in_array($extension, ['jpg', 'png', 'webp', 'gif'], true)) {
+            $extension = 'jpg';
+        }
+
+        $path = 'candidates/' . Str::uuid() . '.' . $extension;
+        Storage::disk('public')->put($path, $binary);
+
+        return $path;
     }
 }

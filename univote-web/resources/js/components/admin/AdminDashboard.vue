@@ -169,17 +169,28 @@
                         <span class="pulse-dot"></span>
                         LIVE ELECTION STANDINGS
                     </span>
-                    <h2 class="polls-heading">Current election standings by organization</h2>
-                    <p class="polls-subtext">Real-time vote distribution and leading candidates from active elections.</p>
+                    <h2 class="polls-heading">Current election standings by scope</h2>
+                    <p class="polls-subtext">Real-time vote distribution and leading candidates from active organization and course elections.</p>
                 </div>
                 <div class="polls-controls">
-                    <label for="poll-org-filter" class="filter-label">Filter by organization</label>
+                    <label for="poll-org-filter" class="filter-label">Filter by scope</label>
                     <select id="poll-org-filter" v-model="selectedOrgFilter" class="org-filter-select">
-                        <option value="all">All Organizations</option>
+                        <option value="all">All Elections</option>
                         <option value="general">Campus-wide / General</option>
-                        <option v-for="org in availablePollOrgs" :key="org.id" :value="org.id">
-                            {{ org.name }} ({{ org.code }})
-                        </option>
+                        <optgroup v-if="availablePollOrgs.length" label="Organizations">
+                            <option v-for="org in availablePollOrgs" :key="org.id" :value="org.id">
+                                {{ org.name }} ({{ org.code }})
+                            </option>
+                        </optgroup>
+                        <optgroup v-if="availablePollCourses.length" label="Courses">
+                            <option
+                                v-for="course in availablePollCourses"
+                                :key="course.id"
+                                :value="`course:${course.id}`"
+                            >
+                                {{ course.code }}<template v-if="course.name && course.name !== course.code"> ({{ course.name }})</template>
+                            </option>
+                        </optgroup>
                     </select>
                 </div>
             </div>
@@ -220,7 +231,7 @@
                                 <svg class="badge-icon" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M10 2L2 7v2h16V7L10 2zM3 10v6h2v-6H3zm4 0v6h2v-6H7zm4 0v6h2v-6h-2zm4 0v6h2v-6h-2zM2 17v2h16v-2H2z" />
                                 </svg>
-                                {{ poll.organization ? `${poll.organization.name} (${poll.organization.code})` : 'Campus-wide / General' }}
+                                {{ poll.course ? `${poll.course.code || poll.course.name}${poll.course.name && poll.course.name !== poll.course.code ? ` (${poll.course.name})` : ''}` : poll.organization ? `${poll.organization.name} (${poll.organization.code})` : 'Campus-wide / General' }}
                             </span>
                             <span class="poll-live-chip">
                                 <span class="dot-live"></span>
@@ -325,7 +336,12 @@
 
         <!-- Organization Voter Statistics & Dynamic Charts -->
         <section class="org-stats-section" aria-label="Organization voter statistics">
-            <AdminVoterCharts :organization-stats="organizationStats" :loading="loading" />
+            <AdminVoterCharts
+                :organization-stats="organizationStats"
+                :course-stats="courseStats"
+                :loading="loading"
+                :scoped-filter="selectedOrgFilter"
+            />
 
             <!-- Organization Statistics Table Breakdown -->
             <article class="panel org-table-panel">
@@ -613,6 +629,7 @@ export default {
         return {
             stats: { total_elections: 0, active_elections: 0, completed_elections: 0, total_voters: 0, total_votes: 0, completed_profiles: 0 },
             organizationStats: [],
+            courseStats: [],
             electionPolls: [],
             recentElectionsList: [],
             selectedOrgFilter: "all",
@@ -666,21 +683,81 @@ export default {
         availablePollOrgs() {
             const seen = new Map();
             this.electionPolls.forEach((poll) => {
-                if (poll.organization && !seen.has(poll.organization.id)) {
-                    seen.set(poll.organization.id, poll.organization);
+                if (poll.organization && poll.organization.id) {
+                    const id = String(poll.organization.id);
+                    if (!seen.has(id)) {
+                        seen.set(id, {
+                            ...poll.organization,
+                            id: id // Ensure ID is a string
+                        });
+                    }
                 }
             });
-            return Array.from(seen.values());
+            return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+        },
+
+        availablePollCourses() {
+            const seen = new Map();
+            this.electionPolls.forEach((poll) => {
+                if (poll.course && poll.course.id) {
+                    const id = String(poll.course.id);
+                    if (!seen.has(id)) {
+                        seen.set(id, {
+                            ...poll.course,
+                            id: id // Ensure ID is a string
+                        });
+                    }
+                }
+            });
+            return Array.from(seen.values()).sort((a, b) =>
+                (a.code || a.name || "").localeCompare(b.code || b.name || "")
+            );
         },
 
         filteredPolls() {
-            if (this.selectedOrgFilter === "all") return this.electionPolls;
-            if (this.selectedOrgFilter === "general") return this.electionPolls.filter((p) => !p.organization);
-            return this.electionPolls.filter((p) => p.organization && p.organization.id === this.selectedOrgFilter);
+            const filter = String(this.selectedOrgFilter);
+            
+            if (filter === "all") return this.electionPolls;
+            
+            if (filter === "general") {
+                return this.electionPolls.filter((p) => !p.organization && !p.course);
+            }
+
+            if (filter.startsWith("course:")) {
+                const courseId = filter.slice("course:".length);
+                return this.electionPolls.filter((p) => p.course && String(p.course.id) === courseId);
+            }
+
+            // Organization filter: show elections for the org OR courses under the org
+            return this.electionPolls.filter((p) => {
+                // Direct organization match
+                if (p.organization && String(p.organization.id) === filter) return true;
+                
+                // Course-scoped election under this organization
+                if (p.course && String(p.course.organization_id) === filter) return true;
+                
+                return false;
+            });
+        },
+
+        // Organization id driven by the "Filter by scope" dropdown.
+        // Returns null for "all", "general" and course scopes (courses have no
+        // organization rows, so the table/charts stay unscoped in those cases).
+        scopedOrgId() {
+            const filter = String(this.selectedOrgFilter);
+            if (!filter || filter === "all" || filter === "general") return null;
+            if (filter.startsWith("course:")) return null;
+            return filter;
         },
 
         filteredOrgStats() {
             let list = [...this.organizationStats];
+
+            // 0. Scope filter — narrow the table to the selected organization
+            if (this.scopedOrgId !== null) {
+                const target = String(this.scopedOrgId);
+                list = list.filter((org) => String(org.id) === target);
+            }
 
             // 1. Text search (Name or Code)
             if (this.tableSearch && this.tableSearch.trim()) {
@@ -795,6 +872,9 @@ export default {
                     }
                     if (dashboardResponse.data.organization_stats) {
                         this.organizationStats = dashboardResponse.data.organization_stats;
+                    }
+                    if (dashboardResponse.data.course_stats) {
+                        this.courseStats = dashboardResponse.data.course_stats;
                     }
                     if (dashboardResponse.data.election_polls) {
                         this.electionPolls = dashboardResponse.data.election_polls;

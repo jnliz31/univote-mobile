@@ -16,7 +16,7 @@ class VoterController extends Controller
             return view('index');
         }
 
-        $query = Voter::with(['organization', 'course'])->withCount('votes')->orderBy('name');
+        $query = Voter::with(['organization', 'courseRelation'])->withCount('votes')->orderBy('name');
 
         if ($request->filled('organization_id')) {
             $orgId = $request->query('organization_id');
@@ -40,7 +40,7 @@ class VoterController extends Controller
             $courseVal = $request->query('course');
             $query->where(function ($q) use ($courseVal) {
                 $q->where('course', $courseVal)
-                  ->orWhereHas('course', function ($rel) use ($courseVal) {
+                  ->orWhereHas('courseRelation', function ($rel) use ($courseVal) {
                       $rel->where('code', $courseVal)->orWhere('name', $courseVal);
                   });
             });
@@ -121,7 +121,7 @@ class VoterController extends Controller
         // Strictly update only safe profile attributes without touching auth/login data or voting history
         $voter->update($updateData);
 
-        $updatedVoter = $voter->fresh(['organization', 'course']);
+        $updatedVoter = $voter->fresh(['organization', 'courseRelation']);
         $updatedVoter->loadCount('votes');
         $updatedVoter->has_voted = $updatedVoter->votes_count > 0;
 

@@ -223,6 +223,36 @@
                                 :key="cIdx"
                                 class="candidate-row"
                             >
+                                <div class="candidate-photo-wrap">
+                                    <label
+                                        class="candidate-photo-control"
+                                        :title="candidate.photoPreview ? 'Change photo' : 'Add candidate photo'"
+                                    >
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            class="candidate-photo-input"
+                                            aria-label="Upload candidate photo"
+                                            @change="onCandidatePhotoSelected(idx, cIdx, $event)"
+                                        />
+                                        <img
+                                            v-if="candidate.photoPreview"
+                                            :src="candidate.photoPreview"
+                                            alt=""
+                                            class="candidate-photo-img"
+                                        />
+                                        <span v-else class="candidate-photo-placeholder">＋</span>
+                                    </label>
+                                    <button
+                                        v-if="candidate.photoPreview"
+                                        type="button"
+                                        class="candidate-photo-remove"
+                                        title="Remove photo"
+                                        @click="removeCandidatePhoto(idx, cIdx)"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
                                 <div class="candidate-input-wrapper">
                                     <span class="candidate-number">{{
                                         cIdx + 1
@@ -314,7 +344,7 @@ export default {
                     {
                         name: "",
                         max_votes: 1,
-                        candidates: [{ name: "" }],
+                        candidates: [{ name: "", photo: null, photoPreview: null }],
                     },
                 ],
             },
@@ -357,17 +387,47 @@ export default {
             this.form.positions.push({
                 name: "",
                 max_votes: 1,
-                candidates: [{ name: "" }],
+                candidates: [{ name: "", photo: null, photoPreview: null }],
             });
         },
         removePosition(idx) {
             this.form.positions.splice(idx, 1);
         },
         addCandidate(positionIdx) {
-            this.form.positions[positionIdx].candidates.push({ name: "" });
+            this.form.positions[positionIdx].candidates.push({ name: "", photo: null, photoPreview: null });
         },
         removeCandidate(positionIdx, candidateIdx) {
             this.form.positions[positionIdx].candidates.splice(candidateIdx, 1);
+        },
+        onCandidatePhotoSelected(positionIdx, candidateIdx, event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith("image/")) {
+                this.showError("Please select a valid image file (JPG, PNG or WebP).");
+                event.target.value = "";
+                return;
+            }
+
+            if (file.size > 2 * 1024 * 1024) {
+                this.showError("Candidate photo must be smaller than 2 MB.");
+                event.target.value = "";
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const candidate = this.form.positions[positionIdx].candidates[candidateIdx];
+                candidate.photo = e.target.result;
+                candidate.photoPreview = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = "";
+        },
+        removeCandidatePhoto(positionIdx, candidateIdx) {
+            const candidate = this.form.positions[positionIdx].candidates[candidateIdx];
+            candidate.photo = null;
+            candidate.photoPreview = null;
         },
         async createElection() {
             if (!this.form.title) {
@@ -419,7 +479,10 @@ export default {
                             max_votes: p.max_votes,
                             candidates: p.candidates
                                 .filter((c) => c.name.trim())
-                                .map((c) => c.name.trim()),
+                                .map((c) => ({
+                                    name: c.name.trim(),
+                                    photo: c.photo || null,
+                                })),
                         }))
                         .filter((p) => p.name),
                 };
@@ -898,6 +961,68 @@ form {
 
 .btn-remove-candidate:hover {
     background: #ffcdd2;
+}
+
+/* Candidate Photo Upload */
+.candidate-photo-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.candidate-photo-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    border: 2px dashed #1565c0;
+    background: #f0f7ff;
+    color: #1565c0;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.candidate-photo-control:hover {
+    border-color: #0d47a1;
+    background: #e3f2fd;
+}
+
+.candidate-photo-input {
+    display: none;
+}
+
+.candidate-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.candidate-photo-placeholder {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.candidate-photo-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    background: #d32f2f;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
 }
 
 /* Add Buttons */

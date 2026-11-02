@@ -14,6 +14,9 @@ return [
     |
     */
 
+    // One-time admin bootstrap token. When empty, the bootstrap endpoint is disabled.
+    'bootstrap_token' => env('BOOTSTRAP_TOKEN'),
+
      'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),

@@ -31,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Rate limiter for login endpoints (web admin + mobile API) to slow down brute force
+        RateLimiter::for('login', function (Request $request) {
+            return Limit::perMinute(5)->by($request->input('email') . '|' . $request->ip());
+        });
+
         // Register Audit Observer for central audit logging across Web and Mobile API
         $auditObserver = \App\Observers\AuditObserver::class;
         \App\Models\Election::observe($auditObserver);

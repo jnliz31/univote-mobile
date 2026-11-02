@@ -1,3 +1,7 @@
+// Self-hosted variable typeface (weights 100-900) for the whole admin UI.
+// Declared as --font-sans in resources/css/app.css.
+import "@fontsource-variable/inter";
+
 import "./bootstrap";
 import { createApp } from "vue";
 import { createPinia } from "pinia";

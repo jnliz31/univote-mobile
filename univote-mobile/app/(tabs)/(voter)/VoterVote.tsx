@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
-import { api, Election, FacialConfig } from '@/services/api';
+import { api, Election, FacialConfig, getFullImageUrl } from '@/services/api';
 import FaceVerificationModal, { FaceVerificationAction } from '@/components/FaceVerificationModal';
 import { useRouter } from 'expo-router';
 
@@ -41,6 +41,31 @@ function getInitials(name: string): string {
     .slice(0, 2)
     .join('')
     .toUpperCase();
+}
+
+// Candidate avatar — shows the uploaded photo when available, otherwise
+// falls back to a colored circle with the candidate's initials.
+function CandidateAvatar({ name, photo }: { name: string; photo?: string | null }) {
+  const [photoError, setPhotoError] = useState(false);
+  const avatar = getAvatarColors(name);
+  const initials = getInitials(name);
+  const photoUri = getFullImageUrl(photo);
+
+  return (
+    <View style={[styles.candidateAvatarCircle, { backgroundColor: avatar.bg }]}>
+      {photoUri && !photoError ? (
+        <Image
+          source={{ uri: photoUri }}
+          style={styles.candidateAvatarImg}
+          onError={() => setPhotoError(true)}
+        />
+      ) : (
+        <Text style={[styles.candidateAvatarInitials, { color: avatar.text }]}>
+          {initials}
+        </Text>
+      )}
+    </View>
+  );
 }
 
 export default function VoterVoteScreen() {
@@ -557,8 +582,6 @@ export default function VoterVoteScreen() {
                 <View style={styles.candidatesList}>
                   {group.candidates.map((c) => {
                     const isSelected = selections[group.position] === c.id;
-                    const avatar = getAvatarColors(c.name);
-                    const initials = getInitials(c.name);
 
                     return (
                       <TouchableOpacity
@@ -576,11 +599,7 @@ export default function VoterVoteScreen() {
                         </View>
 
                         {/* Candidate Avatar */}
-                        <View style={[styles.candidateAvatarCircle, { backgroundColor: avatar.bg }]}>
-                          <Text style={[styles.candidateAvatarInitials, { color: avatar.text }]}>
-                            {initials}
-                          </Text>
-                        </View>
+                        <CandidateAvatar name={c.name} photo={c.photo} />
 
                         {/* Candidate Details */}
                         <View style={styles.candidateDetails}>
@@ -1547,6 +1566,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
+    overflow: 'hidden',
+  },
+  candidateAvatarImg: {
+    width: '100%',
+    height: '100%',
   },
   candidateAvatarInitials: {
     fontSize: 13,

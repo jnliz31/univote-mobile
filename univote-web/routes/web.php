@@ -34,7 +34,7 @@ Route::prefix('admin')->group(function () {
     // Guest routes (not logged in)
     Route::middleware('guest:admin')->group(function () {
         Route::get('login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
-        Route::post('login', [AdminAuthController::class, 'login']);
+        Route::post('login', [AdminAuthController::class, 'login'])->middleware('throttle:login');
     });
 
     // Authenticated routes (logged in)
