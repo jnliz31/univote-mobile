@@ -12,10 +12,20 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://univote-api-3e5w.onrender.com/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1060509098822-39ebe96ve5eq28g5p038mmt6gua5caf4.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1060509098822-s4mtiu3o4dg8t8be75c3jejuburtajbb.apps.googleusercontent.com"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://univote-api-3e5w.onrender.com/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1060509098822-39ebe96ve5eq28g5p038mmt6gua5caf4.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1060509098822-s4mtiu3o4dg8t8be75c3jejuburtajbb.apps.googleusercontent.com"
+      }
     }
   },
   "submit": {
