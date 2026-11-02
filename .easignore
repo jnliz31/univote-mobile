@@ -1,0 +1,28 @@
+# EAS Build archive rules (this file lives at the git repo root).
+# See https://expo.fyi/eas-build-archive
+#
+# IMPORTANT: when .easignore exists, EAS ignores every .gitignore file, so the
+# mobile app's own ignore rules are repeated at the bottom of this file.
+#
+# The Expo project is univote-mobile/. The Laravel backend (univote-web/) is
+# excluded because it contains a Windows junction (univote-web/public/storage)
+# that EAS cannot recreate in its shallow clone while packing the upload:
+#   EPERM: operation not permitted, symlink ... 'univote-web/public/storage'
+
+# --- Backend (not part of the mobile build) ---
+# Anchored, and without a trailing slash, so the directory itself is pruned
+# (a trailing slash would only match its children).
+/univote-web
+
+# --- Repo root clutter ---
+*.md
+/check_avatars.php
+
+# --- Mobile project (mirrors univote-mobile/.gitignore) ---
+node_modules/
+.expo/
+dist/
+expo-env.d.ts
+.env
+.env.*
+*.log
