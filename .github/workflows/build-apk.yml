@@ -1,0 +1,65 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'univote-mobile/**'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: univote-mobile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: univote-mobile/package-lock.json
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Environment Variables
+        run: |
+          echo "EXPO_PUBLIC_API_BASE_URL=https://univote-api-3e5w.onrender.com/api" >> .env
+          echo "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=1060509098822-39ebe96ve5eq28g5p038mmt6gua5caf4.apps.googleusercontent.com" >> .env
+          echo "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=1060509098822-s4mtiu3o4dg8t8be75c3jejuburtajbb.apps.googleusercontent.com" >> .env
+
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build Release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: univote-app-release
+          path: univote-mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 14
+
