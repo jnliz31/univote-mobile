@@ -337,9 +337,9 @@ class ElectionController extends Controller
     }
 
     /**
-     * Persist a candidate photo. Accepts either an already-stored relative
-     * path (returned unchanged) or a base64 data URI which is decoded and
-     * written to the public disk.
+     * Persist a candidate photo. Accepts either an already-stored path/URL
+     * (returned unchanged) or a base64 data URI which is decoded and written
+     * to the disk configured by `filesystems.candidate_photos_disk`.
      */
     private function storeCandidatePhoto($photo): ?string
     {
@@ -370,8 +370,14 @@ class ElectionController extends Controller
         }
 
         $path = 'candidates/' . Str::uuid() . '.' . $extension;
-        Storage::disk('public')->put($path, $binary);
 
-        return $path;
+        $diskName = config('filesystems.candidate_photos_disk', 'public');
+        $disk = Storage::disk($diskName);
+        $disk->put($path, $binary);
+
+        // Cloud disks (S3/R2/B2) must be referenced by absolute URL. The local
+        // public disk is served through the /storage symlink, so keep its path
+        // relative to preserve existing rendering.
+        return $diskName === 'public' ? $path : $disk->url($path);
     }
 }

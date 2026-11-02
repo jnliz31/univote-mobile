@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Candidate Photo Disk
+    |--------------------------------------------------------------------------
+    |
+    | Disk used to store candidate photos. Keep "public" on hosts with a
+    | persistent filesystem; point it at an S3-compatible disk (e.g. "s3")
+    | on ephemeral hosts such as Render's Free plan.
+    |
+    */
+
+    'candidate_photos_disk' => env('CANDIDATE_PHOTOS_DISK', 'public'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |
