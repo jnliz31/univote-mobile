@@ -56,6 +56,7 @@ Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::post('/auth/google', [AuthController::class, 'googleLogin']);
 Route::get('/organizations', [OrganizationController::class, 'index']);
+Route::get('/organizations/{organization}/courses', [OrganizationController::class, 'courses']);
 
 // Protected routes (require authentication)
 Route::middleware('auth:sanctum')->group(function () {
@@ -110,4 +111,3 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{id}', [UserController::class, 'show']);
 });
-

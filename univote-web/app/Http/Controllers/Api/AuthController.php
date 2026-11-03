@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Voter;
 use App\Models\Admin;
+use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -19,22 +21,37 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'age' => 'nullable|integer|min:1|max:120',
             'sex' => 'nullable|string|max:30',
-            'course' => 'required|string|max:255',
+            'course_id' => [
+                'required',
+                'integer',
+                Rule::exists('courses', 'id')
+                    ->where('organization_id', $request->input('organization_id'))
+                    ->where('status', 'assigned'),
+            ],
             'year_level' => 'required|string|max:50',
             'email' => 'required|string|email|max:255|unique:voters',
             'password' => 'required|string|min:6',
-            'organization_id' => 'nullable|exists:organizations,id',
+            'organization_id' => [
+                'required',
+                'integer',
+                Rule::exists('organizations', 'id')->where('is_active', true),
+            ],
         ]);
 
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 422);
         }
 
+        $course = Course::where('organization_id', $request->organization_id)
+            ->where('status', 'assigned')
+            ->findOrFail($request->course_id);
+
         $voter = Voter::create([
             'name' => $request->name,
             'age' => $request->age ?? null,
             'sex' => $request->sex ?? null,
-            'course' => $request->course,
+            'course' => $course->name,
+            'course_id' => $course->id,
             'year_level' => $request->year_level,
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -342,21 +359,36 @@ class AuthController extends Controller
             'student_id' => 'nullable|string|max:50',
             'age' => 'nullable|integer|min:15|max:100',
             'sex' => 'nullable|string|in:Male,Female,Other',
-            'course' => 'nullable|string|max:255',
+            'course_id' => [
+                'required',
+                'integer',
+                Rule::exists('courses', 'id')
+                    ->where('organization_id', $request->input('organization_id'))
+                    ->where('status', 'assigned'),
+            ],
             'year_level' => 'required|string|max:50',
-            'organization_id' => 'required|exists:organizations,id',
+            'organization_id' => [
+                'required',
+                'integer',
+                Rule::exists('organizations', 'id')->where('is_active', true),
+            ],
         ]);
 
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()->first()], 422);
         }
 
+        $course = Course::where('organization_id', $request->organization_id)
+            ->where('status', 'assigned')
+            ->findOrFail($request->course_id);
+
         $profileData = [
             'name' => $request->name,
             'student_id' => $request->filled('student_id') ? trim($request->student_id) : $voter->student_id,
             'age' => $request->filled('age') ? (int)$request->age : $voter->age,
             'sex' => $request->filled('sex') ? $request->sex : $voter->sex,
-            'course' => $request->filled('course') ? trim($request->course) : ($voter->course ?: 'Not Specified'),
+            'course' => $course->name,
+            'course_id' => $course->id,
             'year_level' => $request->year_level,
             'organization_id' => $request->organization_id,
             'is_profile_completed' => true,

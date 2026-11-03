@@ -19,53 +19,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { Colors } from '@/constants/Colors';
-import { api } from '@/services/api';
+import { api, CourseOption } from '@/services/api';
+import { useOrganizationCourses } from '@/hooks/useOrganizationCourses';
 import FaceVerificationModal from '@/components/FaceVerificationModal';
-
-export interface CourseOption {
-  name: string;
-  code: string;
-  college: string;
-  orgKeyword: string;
-}
-
-export const SNSU_OFFICIAL_COURSES: CourseOption[] = [
-  // College of Engineering
-  { name: 'Bachelor of Science in Civil Engineering (BSCE)', code: 'BSCE', college: 'College of Engineering', orgKeyword: 'ENG' },
-  { name: 'Bachelor of Science in Electronics Engineering (BSECE)', code: 'BSECE', college: 'College of Engineering', orgKeyword: 'ENG' },
-  { name: 'Bachelor of Science in Electrical Engineering (BSEE)', code: 'BSEE', college: 'College of Engineering', orgKeyword: 'ENG' },
-  { name: 'Bachelor of Science in Computer Engineering (BSCoE)', code: 'BSCoE', college: 'College of Engineering', orgKeyword: 'ENG' },
-
-  // College of Computing & Information Sciences
-  { name: 'Bachelor of Science in Information Technology (BS I.T.)', code: 'BS I.T.', college: 'College of Computing & Information Sciences', orgKeyword: 'COMP' },
-  { name: 'Bachelor of Science in Computer Science (BSCS)', code: 'BSCS', college: 'College of Computing & Information Sciences', orgKeyword: 'COMP' },
-  { name: 'Bachelor of Science in Information System (BSIS)', code: 'BSIS', college: 'College of Computing & Information Sciences', orgKeyword: 'COMP' },
-
-  // College of Technology
-  { name: 'Bachelor of Automotive Engineering Technology', code: 'BAET', college: 'College of Technology', orgKeyword: 'TECH' },
-  { name: 'Bachelor of Electrical Engineering Technology', code: 'BEET', college: 'College of Technology', orgKeyword: 'TECH' },
-  { name: 'Bachelor of Electronics Engineering Technology', code: 'BExET', college: 'College of Technology', orgKeyword: 'TECH' },
-  { name: 'Bachelor of Mechanical Engineering Technology', code: 'BMET', college: 'College of Technology', orgKeyword: 'TECH' },
-  { name: 'Bachelor of Science in Industrial Technology', code: 'BSIT', college: 'College of Technology', orgKeyword: 'TECH' },
-
-  // College of Business and Management
-  { name: 'Bachelor of Science in Hospitality Management', code: 'BSHM', college: 'College of Business & Management', orgKeyword: 'BUS' },
-  { name: 'Bachelor of Science in Tourism Management', code: 'BSTM', college: 'College of Business & Management', orgKeyword: 'BUS' },
-
-  // College of Teacher Education
-  { name: 'Bachelor of Secondary Education (BSED) - Major in English', code: 'BSED-Eng', college: 'College of Teacher Education', orgKeyword: 'TEACH' },
-  { name: 'Bachelor of Secondary Education (BSED) - Major in Filipino', code: 'BSED-Fil', college: 'College of Teacher Education', orgKeyword: 'TEACH' },
-  { name: 'Bachelor of Secondary Education (BSED) - Major in Science', code: 'BSED-Sci', college: 'College of Teacher Education', orgKeyword: 'TEACH' },
-  { name: 'Bachelor of Secondary Education (BSED) - Major in Mathematics', code: 'BSED-Math', college: 'College of Teacher Education', orgKeyword: 'TEACH' },
-  { name: 'Bachelor of Elementary Education (BEED)', code: 'BEED', college: 'College of Teacher Education', orgKeyword: 'TEACH' },
-  { name: 'Bachelor of Physical Education', code: 'BPEd', college: 'College of Teacher Education', orgKeyword: 'TEACH' },
-  { name: 'Bachelor of Technical Teacher Education (BTTE)', code: 'BTTE', college: 'College of Teacher Education', orgKeyword: 'TEACH' },
-
-  // College of Arts and Sciences
-  { name: 'Bachelor of Science in Environmental Science (BSES)', code: 'BSES', college: 'College of Arts and Sciences', orgKeyword: 'ARTS' },
-  { name: 'Bachelor of Science in Mathematics (BS Math)', code: 'BS Math', college: 'College of Arts and Sciences', orgKeyword: 'ARTS' },
-  { name: 'Bachelor of Arts in English Language', code: 'BAEL', college: 'College of Arts and Sciences', orgKeyword: 'ARTS' },
-];
 
 const YEAR_OPTIONS = [
   { level: '1st Year', description: 'Freshman' },
@@ -86,12 +42,9 @@ export default function GoogleSetupScreen() {
   const [fullName, setFullName] = useState(user?.name || '');
   const [studentId, setStudentId] = useState(user?.student_id || '');
   const studentIdInputRef = useRef<TextInput>(null);
-  const [course, setCourse] = useState(user?.course && user.course !== 'Not Specified' ? user.course : '');
+  const [courseId, setCourseId] = useState<number>();
   const [yearLevel, setYearLevel] = useState(user?.year_level || '1st Year');
   const [organizationId, setOrganizationId] = useState<number | undefined>(user?.organization_id || undefined);
-
-  // Custom Course input toggle
-  const [isCustomCourse, setIsCustomCourse] = useState(false);
 
   // Active focus highlight
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -107,6 +60,7 @@ export default function GoogleSetupScreen() {
   const [organizations, setOrganizations] = useState<{ id: number; name: string; code: string }[]>([]);
   const [organizationsLoading, setOrganizationsLoading] = useState(true);
   const [organizationsError, setOrganizationsError] = useState('');
+  const { courses, loading: coursesLoading, error: coursesError, retry: retryCourses } = useOrganizationCourses(organizationId);
 
   // States
   const [saving, setSaving] = useState(false);
@@ -120,7 +74,6 @@ export default function GoogleSetupScreen() {
       hasLoadedInitialUser.current = true;
       if (user.name) setFullName(user.name);
       if (user.student_id) setStudentId(user.student_id);
-      if (user.course && user.course !== 'Not Specified') setCourse(user.course);
       if (user.year_level) setYearLevel(user.year_level);
       if (user.organization_id) setOrganizationId(user.organization_id);
     }
@@ -160,50 +113,17 @@ export default function GoogleSetupScreen() {
   }, [organizations, deptSearchQuery]);
 
   const filteredCourses = useMemo(() => {
-    if (!courseSearchQuery.trim()) return SNSU_OFFICIAL_COURSES;
+    if (!courseSearchQuery.trim()) return courses;
     const q = courseSearchQuery.toLowerCase();
-    return SNSU_OFFICIAL_COURSES.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.college.toLowerCase().includes(q)
+    return courses.filter(
+      (courseOption) => courseOption.name.toLowerCase().includes(q) || courseOption.code.toLowerCase().includes(q)
     );
-  }, [courseSearchQuery]);
+  }, [courses, courseSearchQuery]);
+  const selectedCourse = courses.find((courseOption) => courseOption.id === courseId);
 
   const handleSelectCourse = (selected: CourseOption) => {
-    setCourse(selected.name);
-    setIsCustomCourse(false);
+    setCourseId(selected.id);
     setCourseModalVisible(false);
-
-    // Smart auto-match college department if not already selected
-    if (!organizationId && organizations.length > 0) {
-      const matchedOrg = organizations.find((org) => {
-        const orgName = org.name.toLowerCase();
-        const orgCode = org.code.toLowerCase();
-        const courseCollege = selected.college.toLowerCase();
-
-        if (selected.orgKeyword === 'COMP' && (orgCode.includes('cite') || orgCode.includes('ccis') || orgName.includes('comput') || orgName.includes('information'))) {
-          return true;
-        }
-        if (selected.orgKeyword === 'ENG' && (orgCode.includes('coe') || orgName.includes('engineer'))) {
-          return true;
-        }
-        if (selected.orgKeyword === 'TECH' && (orgCode.includes('cot') || orgName.includes('technol'))) {
-          return true;
-        }
-        if (selected.orgKeyword === 'TEACH' && (orgCode.includes('cte') || orgName.includes('teacher') || orgName.includes('educat'))) {
-          return true;
-        }
-        if (selected.orgKeyword === 'ARTS' && (orgCode.includes('cas') || orgName.includes('arts') || orgName.includes('science'))) {
-          return true;
-        }
-        if (selected.orgKeyword === 'BUS' && (orgCode.includes('cba') || orgCode.includes('cbm') || orgName.includes('business') || orgName.includes('management') || orgName.includes('tourism') || orgName.includes('hospitality'))) {
-          return true;
-        }
-        return orgName.includes(courseCollege) || courseCollege.includes(orgName);
-      });
-
-      if (matchedOrg) {
-        setOrganizationId(matchedOrg.id);
-      }
-    }
   };
 
   const handleSaveAndProceedToFaceScan = async () => {
@@ -226,8 +146,8 @@ export default function GoogleSetupScreen() {
     }
 
     // 4. Course / Program Validation
-    if (!course.trim()) {
-      Alert.alert('Missing Course', 'Please select or enter your degree program / course.');
+    if (!courseId) {
+      Alert.alert('Missing Course', 'Please select a course added by an administrator for your department.');
       return;
     }
 
@@ -235,7 +155,7 @@ export default function GoogleSetupScreen() {
     const result = await completeProfileSetup({
       fullName: fullName.trim(),
       studentId: studentId.trim(),
-      course: course.trim(),
+      courseId,
       yearLevel,
       organizationId,
     });
@@ -462,85 +382,7 @@ export default function GoogleSetupScreen() {
                 <Text style={styles.hint}>Official university ID / Certificate of Registration (COR) number</Text>
               </View>
 
-              {/* 3. Degree Program / Course Dropdown */}
-              <View style={styles.field}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>
-                    Degree Program / Course <Text style={styles.requiredStar}>*</Text>
-                  </Text>
-                  {isCustomCourse && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        setIsCustomCourse(false);
-                        setCourseModalVisible(true);
-                      }}
-                    >
-                      <Text style={styles.pickFromListText}>Pick from SNSU list</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {isCustomCourse ? (
-                  <View style={[styles.inputContainer, focusedField === 'customCourse' && styles.inputContainerFocused]}>
-                    <Ionicons name="school-outline" size={18} color={focusedField === 'customCourse' ? Colors.primaryLight : '#9CA3AF'} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Type your official course/program..."
-                      placeholderTextColor="#9CA3AF"
-                      value={course}
-                      onChangeText={setCourse}
-                      autoFocus={true}
-                      onFocus={() => setFocusedField('customCourse')}
-                      onBlur={() => setFocusedField(null)}
-                    />
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.inputContainer,
-                      styles.dropdownTrigger,
-                      !course && styles.dropdownTriggerEmpty,
-                    ]}
-                    onPress={() => {
-                      setCourseSearchQuery('');
-                      setCourseModalVisible(true);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.dropdownLeft}>
-                      <View style={[styles.dropdownIconCircle, course ? styles.dropdownIconCircleActive : null]}>
-                        <Ionicons
-                          name="school-outline"
-                          size={17}
-                          color={course ? Colors.primaryLight : '#9CA3AF'}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        {course ? (
-                          <View>
-                            <Text style={styles.dropdownSelectedText} numberOfLines={1}>
-                              {course}
-                            </Text>
-                            <Text style={styles.dropdownSelectedCode}>
-                              {SNSU_OFFICIAL_COURSES.find((c) => c.name === course)?.college || 'Selected Program'}
-                            </Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.dropdownPlaceholderText}>
-                            Select your program
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.dropdownChevronBox}>
-                      <Ionicons name="chevron-down" size={16} color="#6B7280" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-                <Text style={styles.hint}>Select your Program</Text>
-              </View>
-
-              {/* 4. College Department Dropdown */}
+              {/* 3. College Department Dropdown */}
               <View style={styles.field}>
                 <Text style={styles.label}>
                   Department / Organization <Text style={styles.requiredStar}>*</Text>
@@ -593,7 +435,74 @@ export default function GoogleSetupScreen() {
                     </View>
                   </TouchableOpacity>
                 )}
-                <Text style={styles.hint}>Select your Organization</Text>
+                {organizationsError ? (
+                  <Text style={styles.fieldError}>{organizationsError}</Text>
+                ) : (
+                  <Text style={styles.hint}>Select your Organization</Text>
+                )}
+              </View>
+
+              {/* 4. Degree Program / Course Dropdown */}
+              <View style={styles.field}>
+                <Text style={styles.label}>
+                  Degree Program / Course <Text style={styles.requiredStar}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.inputContainer,
+                    styles.dropdownTrigger,
+                    !selectedCourse && styles.dropdownTriggerEmpty,
+                  ]}
+                  onPress={() => {
+                    setCourseSearchQuery('');
+                    setCourseModalVisible(true);
+                  }}
+                  disabled={!organizationId || coursesLoading || courses.length === 0}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.dropdownLeft}>
+                    <View style={[styles.dropdownIconCircle, selectedCourse && styles.dropdownIconCircleActive]}>
+                      <Ionicons
+                        name="school-outline"
+                        size={17}
+                        color={selectedCourse ? Colors.primaryLight : '#9CA3AF'}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      {selectedCourse ? (
+                        <View>
+                          <Text style={styles.dropdownSelectedText} numberOfLines={1}>
+                            {selectedCourse.name}
+                          </Text>
+                          <Text style={styles.dropdownSelectedCode}>{selectedCourse.code}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.dropdownPlaceholderText}>
+                          {organizationId ? 'Select your program' : 'Select an organization first'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.dropdownChevronBox}>
+                    <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                  </View>
+                </TouchableOpacity>
+                {!organizationId ? (
+                  <Text style={styles.hint}>Select your organization to see its courses.</Text>
+                ) : coursesLoading ? (
+                  <Text style={styles.hint}>Loading courses...</Text>
+                ) : coursesError ? (
+                  <View>
+                    <Text style={styles.fieldError}>{coursesError}</Text>
+                    <TouchableOpacity onPress={retryCourses}>
+                      <Text style={styles.retryText}>Retry</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : courses.length === 0 ? (
+                  <Text style={styles.hint}>No courses have been added to this department by an administrator yet.</Text>
+                ) : (
+                  <Text style={styles.hint}>Only courses added by an administrator for this department are available.</Text>
+                )}
               </View>
 
               {/* 5. Year Level Dropdown */}
@@ -710,7 +619,7 @@ export default function GoogleSetupScreen() {
               <View>
                 <Text style={styles.modalTitle}>Select Degree Program</Text>
                 <Text style={styles.modalSubtitle}>
-                  Choose your official SNSU offered program / course
+                  Choose a course added by an administrator for {selectedOrg?.name || 'your department'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -742,30 +651,16 @@ export default function GoogleSetupScreen() {
             {/* List */}
             <FlatList
               data={filteredCourses}
-              keyExtractor={(item) => item.code + item.name}
+              keyExtractor={(item) => String(item.id)}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 24 }}
-              ListFooterComponent={
-                <TouchableOpacity
-                  style={styles.customCourseOption}
-                  onPress={() => {
-                    setIsCustomCourse(true);
-                    setCourseModalVisible(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.customCourseIconCircle}>
-                    <Ionicons name="create-outline" size={18} color={Colors.primaryLight} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.customCourseTitle}>Other / Not Listed</Text>
-                    <Text style={styles.customCourseDesc}>Type your degree program manually</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-                </TouchableOpacity>
+              ListEmptyComponent={
+                <Text style={styles.hint}>
+                  {coursesError || 'No courses have been added to this department by an administrator yet.'}
+                </Text>
               }
               renderItem={({ item }) => {
-                const isSelected = course === item.name;
+                const isSelected = courseId === item.id;
                 return (
                   <TouchableOpacity
                     style={[
@@ -784,7 +679,7 @@ export default function GoogleSetupScreen() {
                       <Text style={[styles.deptItemName, isSelected && styles.deptItemNameSelected]}>
                         {item.name}
                       </Text>
-                      <Text style={styles.deptItemSub}>{item.college}</Text>
+                      <Text style={styles.deptItemSub}>{selectedOrg?.name}</Text>
                     </View>
                     {isSelected ? (
                       <View style={styles.selectedCheckCircle}>
@@ -867,6 +762,7 @@ export default function GoogleSetupScreen() {
                         isSelected && styles.deptItemCardSelected,
                       ]}
                       onPress={() => {
+                        if (organizationId !== item.id) setCourseId(undefined);
                         setOrganizationId(item.id);
                         setDeptModalVisible(false);
                       }}
@@ -896,7 +792,7 @@ export default function GoogleSetupScreen() {
             ) : (
               <View style={styles.emptyListContainer}>
                 <Ionicons name="search-outline" size={36} color="#9CA3AF" />
-                <Text style={styles.emptyListText}>No departments match "{deptSearchQuery}"</Text>
+                <Text style={styles.emptyListText}>No departments match: {deptSearchQuery}</Text>
               </View>
             )}
           </View>
@@ -1228,12 +1124,6 @@ const styles = StyleSheet.create({
     color: '#059669',
     fontWeight: '700',
   },
-  pickFromListText: {
-    fontSize: 11.5,
-    color: Colors.primaryLight,
-    fontWeight: '700',
-  },
-
   /* Modern Input Container */
   inputContainer: {
     flexDirection: 'row',
@@ -1276,6 +1166,17 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
     marginLeft: 2,
+  },
+  fieldError: {
+    fontSize: 11,
+    color: '#B91C1C',
+    marginTop: 4,
+    marginLeft: 2,
+  },
+  retryText: {
+    color: Colors.primaryLight,
+    fontWeight: '700',
+    marginTop: 6,
   },
 
   /* Dropdown Trigger */
@@ -1623,36 +1524,6 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     borderWidth: 1.5,
     borderColor: '#D1D5DB',
-  },
-  customCourseOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#9CA3AF',
-    marginTop: 6,
-  },
-  customCourseIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E8F5E9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  customCourseTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.primaryLight,
-  },
-  customCourseDesc: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 1,
   },
   emptyListContainer: {
     alignItems: 'center',

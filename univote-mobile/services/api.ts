@@ -69,6 +69,13 @@ interface Organization {
   code: string;
 }
 
+export interface CourseOption {
+  id: number;
+  organization_id: number;
+  name: string;
+  code: string;
+}
+
 interface User {
   id: string;
   student_id?: string | null;
@@ -319,7 +326,7 @@ class ApiService {
   }
 
   // Auth endpoints
-  async register(data: { fullName: string; email: string; password: string; age?: number; sex?: string; course: string; yearLevel: string; organizationId?: number }) {
+  async register(data: { fullName: string; email: string; password: string; age?: number; sex?: string; courseId: number; yearLevel: string; organizationId: number }) {
     return this.request<{ user: User; token: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({
@@ -328,7 +335,7 @@ class ApiService {
         password: data.password,
         ...(data.age !== undefined ? { age: data.age } : {}),
         ...(data.sex ? { sex: data.sex } : {}),
-        course: data.course,
+        course_id: data.courseId,
         year_level: data.yearLevel,
         organization_id: data.organizationId,
       }),
@@ -337,6 +344,10 @@ class ApiService {
 
   async getOrganizations() {
     return this.request<Organization[]>('/organizations');
+  }
+
+  async getOrganizationCourses(organizationId: number) {
+    return this.request<{ courses: CourseOption[] }>(`/organizations/${organizationId}/courses`);
   }
 
   async login(email: string, password: string) {
@@ -364,7 +375,7 @@ class ApiService {
     studentId?: string;
     age?: number;
     sex?: string;
-    course?: string;
+    courseId: number;
     yearLevel: string;
     organizationId: number;
   }) {
@@ -376,7 +387,7 @@ class ApiService {
         student_id: data.studentId,
         ...(data.age !== undefined ? { age: data.age } : {}),
         ...(data.sex ? { sex: data.sex } : {}),
-        course: data.course,
+        course_id: data.courseId,
         year_level: data.yearLevel,
         organization_id: data.organizationId,
       }),

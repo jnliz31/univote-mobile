@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { api } from '@/services/api';
+import { useOrganizationCourses } from '@/hooks/useOrganizationCourses';
 import FaceVerificationModal from '@/components/FaceVerificationModal';
 
 function PasswordStrength({ password }: { password: string }) {
@@ -34,10 +35,11 @@ export default function VoterRegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [course, setCourse] = useState('');
+  const [courseId, setCourseId] = useState<number>();
   const [yearLevel, setYearLevel] = useState('');
   const [organizations, setOrganizations] = useState<{ id: number; name: string; code: string }[]>([]);
   const [organizationId, setOrganizationId] = useState<number | undefined>();
+  const { courses, loading: coursesLoading, error: coursesError, retry: retryCourses } = useOrganizationCourses(organizationId);
   const [organizationsLoading, setOrganizationsLoading] = useState(true);
   const [organizationsError, setOrganizationsError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,14 +82,14 @@ export default function VoterRegisterScreen() {
       return;
     }
 
-    if (!fullName.trim() || !course.trim() || !yearLevel || !organizationId) {
+    if (!fullName.trim() || !courseId || !yearLevel || !organizationId) {
       Alert.alert('Missing Fields', 'Please complete your profile details.');
       return;
     }
 
     setLoading(true);
     const result = await registerStudent({
-      fullName, email, password, course, yearLevel, organizationId,
+      fullName, email, password, courseId, yearLevel, organizationId,
     });
     setLoading(false);
 
@@ -176,16 +178,35 @@ export default function VoterRegisterScreen() {
                 <TextInput style={styles.input} placeholder="Enter your full name" placeholderTextColor={Colors.textMuted} value={fullName} onChangeText={setFullName} autoCapitalize="words" />
               </View>
               <View style={styles.field}>
+                <Text style={styles.label}>College Department</Text>
+                {organizationsLoading ? <ActivityIndicator color={Colors.primary} /> : organizations.length ? <View style={styles.choiceRow}>{organizations.map((organization) => <TouchableOpacity key={organization.id} style={[styles.choice, organizationId === organization.id && styles.choiceSelected]} onPress={() => { setOrganizationId(organization.id); setCourseId(undefined); }}><Text style={[styles.choiceText, organizationId === organization.id && styles.choiceTextSelected]}>{organization.name} ({organization.code})</Text></TouchableOpacity>)}</View> : <View style={styles.organizationEmpty}><Text style={styles.organizationEmptyText}>{organizationsError || 'No college departments have been registered yet.'}</Text><TouchableOpacity onPress={loadOrganizations}><Text style={styles.retryText}>Retry</Text></TouchableOpacity></View>}
+              </View>
+              <View style={styles.field}>
                 <Text style={styles.label}>Course</Text>
-                <TextInput style={styles.input} placeholder="e.g. BS Information Technology" placeholderTextColor={Colors.textMuted} value={course} onChangeText={setCourse} />
+                {!organizationId ? (
+                  <Text style={styles.hint}>Select your college department to see its available courses.</Text>
+                ) : coursesLoading ? (
+                  <ActivityIndicator color={Colors.primary} />
+                ) : coursesError ? (
+                  <View style={styles.organizationEmpty}>
+                    <Text style={styles.organizationEmptyText}>{coursesError}</Text>
+                    <TouchableOpacity onPress={retryCourses}><Text style={styles.retryText}>Retry</Text></TouchableOpacity>
+                  </View>
+                ) : courses.length ? (
+                  <View style={styles.choiceRow}>
+                    {courses.map((item) => (
+                      <TouchableOpacity key={item.id} style={[styles.choice, courseId === item.id && styles.choiceSelected]} onPress={() => setCourseId(item.id)}>
+                        <Text style={[styles.choiceText, courseId === item.id && styles.choiceTextSelected]}>{item.code} - {item.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.hint}>No courses have been added to this department by an administrator yet.</Text>
+                )}
               </View>
               <View style={styles.field}>
                 <Text style={styles.label}>Year Level</Text>
                 <View style={styles.choiceRow}>{['1st Year', '2nd Year', '3rd Year', '4th Year', 'Graduate'].map((option) => <TouchableOpacity key={option} style={[styles.choice, yearLevel === option && styles.choiceSelected]} onPress={() => setYearLevel(option)}><Text style={[styles.choiceText, yearLevel === option && styles.choiceTextSelected]}>{option}</Text></TouchableOpacity>)}</View>
-              </View>
-              <View style={styles.field}>
-                <Text style={styles.label}>College Department</Text>
-                {organizationsLoading ? <ActivityIndicator color={Colors.primary} /> : organizations.length ? <View style={styles.choiceRow}>{organizations.map((organization) => <TouchableOpacity key={organization.id} style={[styles.choice, organizationId === organization.id && styles.choiceSelected]} onPress={() => setOrganizationId(organization.id)}><Text style={[styles.choiceText, organizationId === organization.id && styles.choiceTextSelected]}>{organization.name} ({organization.code})</Text></TouchableOpacity>)}</View> : <View style={styles.organizationEmpty}><Text style={styles.organizationEmptyText}>{organizationsError || 'No college departments have been registered yet.'}</Text><TouchableOpacity onPress={loadOrganizations}><Text style={styles.retryText}>Retry</Text></TouchableOpacity></View>}
               </View>
             </>
           )}
