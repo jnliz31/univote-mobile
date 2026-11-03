@@ -285,6 +285,66 @@ class FacialSecurityTest extends TestCase
         $voteSuccess->assertStatus(201);
         $voteSuccess->assertJsonFragment(['message' => 'Votes submitted successfully']);
     }
+
+    public function test_vote_respects_max_votes_per_position(): void
+    {
+        $org = Organization::create(['name' => 'Multi Vote Org', 'code' => 'MULTI']);
+        $voter = $this->createTestVoter(['organization_id' => $org->id]);
+        $election = Election::create([
+            'title' => 'Multi Vote Election',
+            'status' => 'active',
+            'organization_id' => $org->id,
+        ]);
+        $position = Position::create([
+            'election_id' => $election->id,
+            'name' => 'Representative',
+            'order' => 1,
+            'max_votes' => 2,
+        ]);
+        $candidates = collect(['Candidate One', 'Candidate Two', 'Candidate Three'])
+            ->map(fn ($name) => Candidate::create([
+                'position_id' => $position->id,
+                'name' => $name,
+            ]));
+
+        \App\Models\FacialProfile::create([
+            'voter_id' => $voter->id,
+            'face_data' => 'enrolled-face',
+        ]);
+
+        $payload = base64_encode(json_encode([
+            'voter_id' => $voter->id,
+            'exp' => time() + 900,
+        ]));
+        $token = $payload.'.'.hash_hmac(
+            'sha256',
+            $payload,
+            config('app.key').'face-verification'
+        );
+
+        $electionsResponse = $this->actingAs($voter, 'sanctum')->getJson('/api/elections?status=active');
+        $electionsResponse->assertOk();
+        $this->assertSame(2, $electionsResponse->json('0.candidates.0.max_votes'));
+
+        $tooManyVotes = $this->actingAs($voter, 'sanctum')->postJson('/api/votes', [
+            'election_id' => $election->id,
+            'candidates' => $candidates->pluck('id')->all(),
+            'facial_session_token' => $token,
+        ]);
+        $tooManyVotes->assertStatus(422);
+        $tooManyVotes->assertJsonFragment([
+            'error' => 'You can select at most 2 candidates for Representative',
+        ]);
+
+        $validVotes = $this->actingAs($voter, 'sanctum')->postJson('/api/votes', [
+            'election_id' => $election->id,
+            'candidates' => $candidates->take(2)->pluck('id')->all(),
+            'facial_session_token' => $token,
+        ]);
+        $validVotes->assertCreated();
+        $validVotes->assertJsonPath('votes', 2);
+    }
+
     public function test_verify_rejects_blurry_face(): void
     {
         $voter = $this->createTestVoter();

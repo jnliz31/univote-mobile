@@ -51,6 +51,7 @@ class ElectionController extends Controller
                         'election_id' => $election->id,
                         'name' => $candidate->name,
                         'position' => $position->name,
+                        'max_votes' => $position->max_votes ?? 1,
                         'description' => $candidate->description,
                         'photo' => $candidate->photo,
                     ];

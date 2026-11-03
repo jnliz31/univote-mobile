@@ -172,6 +172,7 @@ interface Candidate {
   election_id: number;
   name: string;
   position?: string;
+  max_votes?: number;
   description?: string;
   photo?: string;
 }

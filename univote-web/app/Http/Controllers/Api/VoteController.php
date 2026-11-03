@@ -59,7 +59,7 @@ class VoteController extends Controller
             'election_id' => 'required|exists:elections,id',
             'candidate_id' => 'required_without:candidates|exists:candidates,id',
             'candidates' => 'required_without:candidate_id|array|min:1',
-            'candidates.*' => 'exists:candidates,id',
+            'candidates.*' => 'distinct|exists:candidates,id',
             'facial_session_token' => 'nullable|string',
         ]);
 
@@ -123,13 +123,29 @@ class VoteController extends Controller
             ? $request->candidates
             : [$request->candidate_id];
 
-        $validCandidateIds = $election->positions->flatMap(function ($position) {
-            return $position->candidates->pluck('id');
-        })->toArray();
+        $candidatePositions = [];
+        foreach ($election->positions as $position) {
+            foreach ($position->candidates as $candidate) {
+                $candidatePositions[$candidate->id] = $position;
+            }
+        }
 
         foreach ($candidateIds as $candidateId) {
-            if (!in_array((int) $candidateId, $validCandidateIds)) {
+            if (!isset($candidatePositions[(int) $candidateId])) {
                 return response()->json(['error' => "Invalid candidate ID {$candidateId} for this election"], 422);
+            }
+        }
+
+        $votesPerPosition = [];
+        foreach ($candidateIds as $candidateId) {
+            $position = $candidatePositions[(int) $candidateId];
+            $votesPerPosition[$position->id] = ($votesPerPosition[$position->id] ?? 0) + 1;
+            $maxVotes = max(1, (int) ($position->max_votes ?? 1));
+
+            if ($votesPerPosition[$position->id] > $maxVotes) {
+                return response()->json([
+                    'error' => "You can select at most {$maxVotes} candidates for {$position->name}",
+                ], 422);
             }
         }
 

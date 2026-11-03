@@ -74,7 +74,7 @@ export default function VoterVoteScreen() {
   const [elections, setElections] = useState<Election[]>([]);
   const [selectedElection, setSelectedElection] = useState<Election | null>(null);
   const [pendingElection, setPendingElection] = useState<Election | null>(null);
-  const [selections, setSelections] = useState<Record<string, number>>({});
+  const [selections, setSelections] = useState<Record<string, number[]>>({});
   const [votedElections, setVotedElections] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -174,8 +174,26 @@ export default function VoterVoteScreen() {
     setStep('vote');
   };
 
-  const handleSelectCandidate = (position: string, candidateId: number) => {
-    setSelections((prev) => ({ ...prev, [position]: candidateId }));
+  const handleSelectCandidate = (position: string, candidateId: number, maxVotes: number) => {
+    setSelections((prev) => {
+      const selected = prev[position] || [];
+      if (selected.includes(candidateId)) {
+        const updated = selected.filter((id) => id !== candidateId);
+        const next = { ...prev };
+        if (updated.length > 0) {
+          next[position] = updated;
+        } else {
+          delete next[position];
+        }
+        return next;
+      }
+
+      if (selected.length >= maxVotes) {
+        return prev;
+      }
+
+      return { ...prev, [position]: [...selected, candidateId] };
+    });
   };
 
   const needsFacialEnrollment = () => {
@@ -225,7 +243,7 @@ export default function VoterVoteScreen() {
       ? Array.from(new Set(selectedElection.candidates.map((c) => c.position || 'Candidate')))
       : [];
 
-    const missing = positions.filter((p) => !selections[p]);
+    const missing = positions.filter((p) => !selections[p]?.length);
     if (missing.length > 0) {
       Alert.alert('Incomplete Ballot', `Please select a candidate for: ${missing.join(', ')}`);
       return;
@@ -288,7 +306,7 @@ export default function VoterVoteScreen() {
       return;
     }
 
-    const candidateIds = Object.values(selections);
+    const candidateIds = ballotGroups.flatMap((group) => selections[group.position] || []);
     setSubmitting(true);
     const result = await api.castVotes(selectedElection.id, candidateIds, facialSessionToken || undefined);
     setSubmitting(false);
@@ -327,25 +345,28 @@ export default function VoterVoteScreen() {
   };
 
   // Grouped positions for active ballot
-  const ballotGroups = useMemo(() => {
-    if (!selectedElection) return [];
-    const candidates = selectedElection.candidates || [];
-    const positions = Array.from(new Set(candidates.map((c) => c.position || 'Candidate')));
-    return positions.map((pos) => ({
-      position: pos,
-      candidates: candidates.filter((c) => (c.position || 'Candidate') === pos),
-    }));
-  }, [selectedElection]);
+  const candidates = selectedElection?.candidates || [];
+  const positions = Array.from(new Set(candidates.map((c) => c.position || 'Candidate')));
+  const ballotGroups = positions.map((position) => ({
+    position,
+    candidates: candidates.filter((candidate) => (candidate.position || 'Candidate') === position),
+    maxVotes: Math.max(
+      1,
+      Number(candidates.find((candidate) => (candidate.position || 'Candidate') === position)?.max_votes) || 1
+    ),
+  }));
 
   const selectedCount = useMemo(() => {
-    return Object.keys(selections).length;
+    return Object.values(selections).filter((selected) => selected.length > 0).length;
   }, [selections]);
 
   const totalPositions = useMemo(() => {
     return ballotGroups.length;
   }, [ballotGroups]);
 
-  const allSelected = totalPositions > 0 && selectedCount === totalPositions;
+  const allSelected = totalPositions > 0 && ballotGroups.every(
+    (group) => (selections[group.position]?.length || 0) > 0
+  );
   const progressRatio = totalPositions > 0 ? selectedCount / totalPositions : 0;
 
   if (loading) {
@@ -451,7 +472,7 @@ export default function VoterVoteScreen() {
             </View>
             <Text style={styles.electionOverviewTitle}>{selectedElection.title}</Text>
             <Text style={styles.electionOverviewDesc}>
-              {selectedElection.description || 'Select exactly one candidate for each contested position below.'}
+              {selectedElection.description || 'Select at least one candidate for each position, up to its limit.'}
             </Text>
           </View>
 
@@ -531,7 +552,8 @@ export default function VoterVoteScreen() {
             </View>
           ) : (
             ballotGroups.map((group, groupIdx) => {
-            const isPositionChosen = !!selections[group.position];
+            const selectedForPosition = selections[group.position]?.length || 0;
+            const isPositionChosen = selectedForPosition > 0;
 
             return (
               <View key={group.position} style={styles.positionSection}>
@@ -553,7 +575,12 @@ export default function VoterVoteScreen() {
                         {groupIdx + 1}
                       </Text>
                     </View>
-                    <Text style={styles.positionName}>{group.position}</Text>
+                    <View style={styles.positionNameGroup}>
+                      <Text style={styles.positionName}>{group.position}</Text>
+                      <Text style={styles.positionLimitText}>
+                        Select up to {group.maxVotes} candidate{group.maxVotes !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
                   </View>
 
                   <View
@@ -573,7 +600,7 @@ export default function VoterVoteScreen() {
                         isPositionChosen ? styles.choiceStatusTextDone : styles.choiceStatusTextPending,
                       ]}
                     >
-                      {isPositionChosen ? 'Selected' : '1 Choice'}
+                      {selectedForPosition}/{group.maxVotes} selected
                     </Text>
                   </View>
                 </View>
@@ -581,7 +608,9 @@ export default function VoterVoteScreen() {
                 {/* Candidate Selection Cards */}
                 <View style={styles.candidatesList}>
                   {group.candidates.map((c) => {
-                    const isSelected = selections[group.position] === c.id;
+                    const isSelected = (selections[group.position] || []).includes(c.id);
+                    const selectionLimitReached =
+                      !isSelected && selectedForPosition >= group.maxVotes;
 
                     return (
                       <TouchableOpacity
@@ -589,12 +618,14 @@ export default function VoterVoteScreen() {
                         style={[
                           styles.candidateCard,
                           isSelected && styles.candidateCardSelected,
+                          selectionLimitReached && styles.candidateCardDisabled,
                         ]}
-                        onPress={() => handleSelectCandidate(group.position, c.id)}
+                        onPress={() => handleSelectCandidate(group.position, c.id, group.maxVotes)}
+                        disabled={selectionLimitReached}
                         activeOpacity={0.8}
                       >
-                        {/* Radio Check Indicator */}
-                        <View style={[styles.customRadio, isSelected && styles.customRadioActive]}>
+                        {/* Selection Check Indicator */}
+                        <View style={[styles.customCheckbox, isSelected && styles.customCheckboxActive]}>
                           {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
                         </View>
 
@@ -644,7 +675,7 @@ export default function VoterVoteScreen() {
                 ? 'Scan face to view candidates'
                 : allSelected && facialSessionToken
                 ? 'Ready to cast verified vote'
-                : 'Select one candidate per position'}
+                : 'Select at least one candidate per position, up to each limit'}
             </Text>
           </View>
 
@@ -1106,6 +1137,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+  candidateCardDisabled: {
+    opacity: 0.55,
+  },
   electionCardVoted: {
     backgroundColor: '#F9FAFB',
     borderColor: '#D1FAE5',
@@ -1494,6 +1528,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
+  positionNameGroup: {
+    flex: 1,
+  },
+  positionLimitText: {
+    color: '#6B7280',
+    fontSize: 11,
+    marginTop: 2,
+  },
   choiceStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1545,17 +1587,17 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  customRadio: {
+  customCheckbox: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: '#D1D5DB',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
-  customRadioActive: {
+  customCheckboxActive: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primary,
   },
